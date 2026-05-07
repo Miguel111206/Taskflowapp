@@ -1,0 +1,7 @@
+﻿fastapi
+uvicorn[standard]
+sqlmodel
+pymysql
+pytest
+requests
+passlib[bcrypt]
