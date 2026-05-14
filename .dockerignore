@@ -1,0 +1,14 @@
+.git
+.pytest_cache
+**/.pytest_cache
+**/__pycache__
+**/*.pyc
+**/*.pyo
+**/*.pyd
+**/.env
+**/*.log
+**/*.db
+**/node_modules
+frontend/dist
+backend_clean
+docker-data

@@ -1,0 +1,43 @@
+services:
+  db:
+    image: mysql:8.0
+    container_name: taskflow-db
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: 123456789
+      MYSQL_DATABASE: taskflow
+    volumes:
+      - taskflow_mysql_data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-p123456789"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  backend:
+    build:
+      context: ./backend
+    container_name: taskflow-backend
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: mysql+pymysql://root:123456789@db:3306/taskflow
+      SECRET_KEY: taskflow-dev-secret-key
+      REFRESH_SECRET_KEY: taskflow-dev-refresh-secret-key
+    ports:
+      - "8010:8010"
+    depends_on:
+      db:
+        condition: service_healthy
+
+  frontend:
+    build:
+      context: ./frontend
+    container_name: taskflow-frontend
+    restart: unless-stopped
+    ports:
+      - "5174:5173"
+    depends_on:
+      - backend
+
+volumes:
+  taskflow_mysql_data:

@@ -5,3 +5,9 @@ pymysql
 pytest
 requests
 passlib[bcrypt]
+python-dotenv
+python-jose[cryptography]
+pyotp
+qrcode[pil]
+slowapi
+python-multipart
