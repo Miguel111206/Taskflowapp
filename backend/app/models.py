@@ -2,6 +2,7 @@
 from typing import Optional
 from datetime import datetime
 from sqlmodel import SQLModel, Field
+from sqlalchemy import Column, Text
 
 class User(SQLModel, table=True):
     __table_args__ = {"extend_existing": True}
@@ -22,6 +23,6 @@ class Task(SQLModel, table=True):
     description: str = ""
     status: str = "todo"
     owner: Optional[str] = Field(default=None, index=True)
-    image: Optional[str] = Field(default=None, nullable=True)
+    image: Optional[str] = Field(default=None, nullable=True, sa_column=Column(Text))
     priority: str = Field(default="media")
     created_at: Optional[datetime] = Field(default_factory=datetime.utcnow)

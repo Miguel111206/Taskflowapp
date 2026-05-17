@@ -1,0 +1,4 @@
+taskflow-backend  | INFO:     Started server process [1]
+taskflow-backend  | INFO:     Waiting for application startup.
+taskflow-backend  | INFO:     Application startup complete.
+taskflow-backend  | INFO:     Uvicorn running on http://0.0.0.0:8010 (Press CTRL+C to quit)

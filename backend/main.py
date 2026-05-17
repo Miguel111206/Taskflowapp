@@ -1,5 +1,5 @@
 ﻿# Asignado: Copilot
-from fastapi import FastAPI, HTTPException, Depends, status, Request, UploadFile
+from fastapi import FastAPI, HTTPException, Depends, status, Request, UploadFile, Header
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from pydantic import BaseModel
@@ -37,7 +37,7 @@ REFRESH_TOKEN_EXPIRE_DAYS = 30
 from app.db import engine
 from app.models import User, Task
 
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+pwd_context = CryptContext(schemes=["pbkdf2_sha256"], deprecated="auto")
 
 limiter = Limiter(key_func=get_remote_address)
 
@@ -217,6 +217,31 @@ def login_json(payload: RegisterPayload):
 @app.get("/health")
 def health():
     return {"status": "ok"}
+
+
+@app.post("/admin/create_admin")
+def create_admin(payload: RegisterPayload, x_admin_key: str = Header(None)):
+    """Create an initial admin user. Requires ADMIN_SETUP_KEY env var and header 'X-Admin-Key'.
+    This endpoint is intentionally gated and should only be used for initial setup.
+    """
+    setup_key = os.getenv("ADMIN_SETUP_KEY")
+    if not setup_key:
+        raise HTTPException(status_code=403, detail="Admin setup disabled")
+    if x_admin_key != setup_key:
+        raise HTTPException(status_code=401, detail="Invalid admin setup key")
+
+    with Session(engine) as session:
+        existing = session.exec(select(User).where(User.username == payload.username)).first()
+        if existing:
+            raise HTTPException(status_code=400, detail="Username already exists")
+        user = User(username=payload.username, password_hash=hash_password(payload.password), is_admin=True, role="admin")
+        session.add(user)
+        session.commit()
+        session.refresh(user)
+
+        access_token = create_access_token({"sub": user.username})
+        refresh_token = create_refresh_token({"sub": user.username})
+        return {"id": user.id, "username": user.username, "access_token": access_token, "refresh_token": refresh_token, "token_type": "bearer"}
 
 @app.post("/login/2fa", response_model=Token)
 def login_2fa(request: Request, payload: Verify2FAPayload):
@@ -488,6 +513,19 @@ def get_task_image(task_id: int, current_user: User = Depends(get_current_user))
         t = session.get(Task, task_id)
         if not t:
             raise HTTPException(status_code=404, detail="Task not found")
+        if not t.image:
+            raise HTTPException(status_code=404, detail="Image not found")
+        # If stored as a data URI (data:<media_type>;base64,<data>), decode and return binary
+        if isinstance(t.image, str) and t.image.startswith("data:"):
+            try:
+                header, b64 = t.image.split(',', 1)
+                media_type = header.split(';')[0].split(':', 1)[1]
+                import base64
+                data = base64.b64decode(b64)
+                return Response(content=data, media_type=media_type)
+            except Exception:
+                raise HTTPException(status_code=500, detail="Invalid image data")
+        # Fallback: return JSON (backwards compatibility)
         return {"image": t.image}
 
 @app.get("/tasks/by_user/{username}", response_model=List[Task])

@@ -186,11 +186,12 @@ export function uploadTaskImage(taskId, file) {
   const formData = new FormData();
   formData.append("file", file);
   
+  const headers = {};
+  if (accessToken) headers["Authorization"] = `Bearer ${accessToken}`;
+
   return fetch(`${API_URL}/tasks/${taskId}/image`, {
     method: "POST",
-    headers: {
-      "Authorization": `Bearer ${accessToken}`,
-    },
+    headers,
     body: formData,
   }).then(async res => {
     if (!res.ok) {
@@ -202,10 +203,11 @@ export function uploadTaskImage(taskId, file) {
 }
 
 export function getTaskImage(taskId) {
+  const headers = {};
+  if (accessToken) headers["Authorization"] = `Bearer ${accessToken}`;
+
   return fetch(`${API_URL}/tasks/${taskId}/image`, {
-    headers: {
-      "Authorization": `Bearer ${accessToken}`,
-    },
+    headers,
   }).then(res => {
     if (!res.ok) return null;
     return res.blob();

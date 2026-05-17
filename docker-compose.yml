@@ -23,6 +23,9 @@ services:
       DATABASE_URL: mysql+pymysql://root:123456789@db:3306/taskflow
       SECRET_KEY: taskflow-dev-secret-key
       REFRESH_SECRET_KEY: taskflow-dev-refresh-secret-key
+      # Provide ADMIN_SETUP_KEY in your host environment before starting the stack
+      # e.g. in PowerShell: $Env:ADMIN_SETUP_KEY = 'some-secret' ; docker-compose up -d --build
+      ADMIN_SETUP_KEY: ${ADMIN_SETUP_KEY:-}
     ports:
       - "8010:8010"
     depends_on:

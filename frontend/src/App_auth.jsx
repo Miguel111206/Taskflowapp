@@ -391,12 +391,11 @@ export default function App() {
     
     try {
       const accessToken = localStorage.getItem('tf_access_token');
+      const headers = { "Content-Type": "application/json" };
+      if (accessToken) headers["Authorization"] = `Bearer ${accessToken}`;
       const response = await fetch("/chatbot", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "Authorization": `Bearer ${accessToken}`,
-        },
+        headers,
         body: JSON.stringify({ message: userMessage }),
       });
       
@@ -456,12 +455,11 @@ export default function App() {
 
     try {
       const accessToken = localStorage.getItem('tf_access_token');
+      const headers = { "Content-Type": "application/json" };
+      if (accessToken) headers["Authorization"] = `Bearer ${accessToken}`;
       const response = await fetch("/chatbot", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "Authorization": `Bearer ${accessToken}`,
-        },
+        headers,
         body: JSON.stringify({ message: "Agregale una foto" }),
       });
 

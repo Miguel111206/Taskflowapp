@@ -11,3 +11,5 @@ pyotp
 qrcode[pil]
 slowapi
 python-multipart
+bcrypt>=4.0.1
+httpx>=0.24.0
