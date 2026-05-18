@@ -27,7 +27,7 @@ services:
       # e.g. in PowerShell: $Env:ADMIN_SETUP_KEY = 'some-secret' ; docker-compose up -d --build
       ADMIN_SETUP_KEY: ${ADMIN_SETUP_KEY:-}
     ports:
-      - "8010:8010"
+      - "8011:8010"
     depends_on:
       db:
         condition: service_healthy
@@ -38,7 +38,7 @@ services:
     container_name: taskflow-frontend
     restart: unless-stopped
     ports:
-      - "5174:5173"
+      - "5181:5173"
     depends_on:
       - backend
 

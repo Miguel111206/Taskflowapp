@@ -23,6 +23,6 @@ class Task(SQLModel, table=True):
     description: str = ""
     status: str = "todo"
     owner: Optional[str] = Field(default=None, index=True)
-    image: Optional[str] = Field(default=None, nullable=True, sa_column=Column(Text))
+    image: Optional[str] = Field(default=None, sa_column=Column(Text))
     priority: str = Field(default="media")
     created_at: Optional[datetime] = Field(default_factory=datetime.utcnow)

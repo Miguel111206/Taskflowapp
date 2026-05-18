@@ -14,6 +14,7 @@ import qrcode
 import io
 import base64
 from passlib.context import CryptContext
+from sqlalchemy import text
 from slowapi import Limiter
 from slowapi.util import get_remote_address
 from slowapi.errors import RateLimitExceeded
@@ -58,8 +59,34 @@ app.add_middleware(
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="login")
 
-# Ensure DB tables exist
-SQLModel.metadata.create_all(engine)
+# Ensure DB tables exist (wrap to surface errors during container startup)
+try:
+    SQLModel.metadata.create_all(engine)
+except Exception as e:
+    # Log to a file for visibility in container logs
+    try:
+        with open('backend_db_setup_error.log', 'a', encoding='utf-8') as f:
+            f.write(f"[{datetime.utcnow().isoformat()}] DB setup error: {str(e)}\n")
+    except Exception:
+        pass
+    raise
+
+# Also attempt connection test at startup to fail fast if DB unreachable
+@app.on_event("startup")
+def startup_check_db():
+    try:
+        from sqlalchemy import text
+        with Session(engine) as session:
+            session.execute(text("SELECT 1"))
+    except Exception as e:
+        try:
+            with open('backend_db_setup_error.log', 'a', encoding='utf-8') as f:
+                f.write(f"[{datetime.utcnow().isoformat()}] DB connectivity test failed: {str(e)}\n")
+        except Exception:
+            pass
+        # re-raise so container shows error
+        raise
+
 
 class Token(BaseModel):
     access_token: str
