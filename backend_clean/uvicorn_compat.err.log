@@ -4,3 +4,25 @@ INFO:     Started reloader process [33544] using WatchFiles
 INFO:     Started server process [35536]
 INFO:     Waiting for application startup.
 INFO:     Application startup complete.
+WARNING:  WatchFiles detected changes in 'main.py', 'src\presentation\api\app.py', 'src\infrastructure\models\user_model.py'. Reloading...
+INFO:     Shutting down
+INFO:     Waiting for application shutdown.
+INFO:     Application shutdown complete.
+INFO:     Finished server process [35536]
+WARNING:  WatchFiles detected changes in 'src\presentation\api\endpoints\compat.py'. Reloading...
+Task was destroyed but it is pending!
+task: <Task pending name='Task-1' coro=<Server.serve() running at C:\Users\User\AppData\Roaming\Python\Python314\site-packages\uvicorn\server.py:77>>
+C:\Users\User\AppData\Roaming\Python\Python314\site-packages\uvicorn\_subprocess.py:84: RuntimeWarning: coroutine 'Server.serve' was never awaited
+  pass
+RuntimeWarning: Enable tracemalloc to get the object allocation traceback
+INFO:     Started server process [34344]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+WARNING:  WatchFiles detected changes in 'src\presentation\api\endpoints\compat.py'. Reloading...
+INFO:     Shutting down
+INFO:     Waiting for application shutdown.
+INFO:     Application shutdown complete.
+INFO:     Finished server process [34344]
+INFO:     Started server process [26096]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
