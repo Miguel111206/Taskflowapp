@@ -514,6 +514,25 @@ def change_task_status(task_id: int, status: str, current_user: User = Depends(g
 
 @app.post("/tasks/{task_id}/image")
 async def upload_task_image(task_id: int, file: UploadFile, current_user: User = Depends(get_current_user)):
+    allowed_image_types = {
+        "image/jpeg",
+        "image/png",
+        "image/gif",
+        "image/webp",
+        "image/bmp",
+        "image/svg+xml",
+        "image/heic",
+        "image/heif",
+        "image/tiff",
+        "image/avif",
+    }
+
+    if file.content_type not in allowed_image_types:
+        raise HTTPException(
+            status_code=400,
+            detail="Unsupported image type. Allowed: JPEG, PNG, GIF, WEBP, BMP, SVG, HEIC, HEIF, TIFF, AVIF",
+        )
+
     with Session(engine) as session:
         t = session.get(Task, task_id)
         if not t:
@@ -666,6 +685,22 @@ def chatbot(payload: ChatbotPayload, current_user: User = Depends(get_current_us
         session_state["pending_action"] = None
         session_state.pop("selected_task", None)
 
+    def help_menu_response():
+        clear_pending_chat_action()
+        return {"response": f"""📋 MENÚ DE OPCIONES
+
+1️⃣ Crear tarea
+2️⃣ Modificar tarea (cambiar nombre)
+3️⃣ Modificar estado de tarea
+4️⃣ Agregar foto a una tarea
+5️⃣ Mostrar lista de tareas
+6️⃣ Completar tarea
+7️⃣ Eliminar tarea
+8️⃣ Ver estadísticas
+9️⃣ Salir
+
+Escribe el número (1-9) o usa un comando como 'crea tarea preparar cena'."""}
+
     def find_task_by_reference(session: Session, text: str) -> Optional[Task]:
         reference = text.strip()
         id_match = re.search(r'#?\b(\d+)\b', reference)
@@ -700,7 +735,7 @@ def chatbot(payload: ChatbotPayload, current_user: User = Depends(get_current_us
     def photo_upload_response(task: Task):
         clear_pending_chat_action()
         return {
-            "response": f"📷 Para agregar foto a '{task.title}':\n\n1. Abre la tarea en la app\n2. Click en 'Subir imagen'\n3. Selecciona la foto\n\nO usa la API: POST /tasks/{task.id}/image con un archivo JPEG/PNG",
+            "response": f"📷 Para agregar foto a '{task.title}':\n\n1. Abre la tarea en la app\n2. Click en 'Subir imagen'\n3. Selecciona la foto\n\nFormatos permitidos: JPEG, PNG, GIF, WEBP, BMP, SVG, HEIC, HEIF, TIFF y AVIF.\n\nO usa la API: POST /tasks/{task.id}/image",
             "action": "photo_upload",
             "task_id": task.id,
         }
@@ -746,7 +781,11 @@ def chatbot(payload: ChatbotPayload, current_user: User = Depends(get_current_us
 
     yes_words = {"si", "sí", "s", "yes", "y", "claro", "dale", "ok", "okay", "vale", "hazlo"}
     no_words = {"no", "n", "nop", "nope", "cancelar", "cancela", "dejalo", "déjalo"}
+    help_words = {"ayuda", "help", "comandos", "menu", "menú", "opciones", "?"}
     desc_request = re.search(r'(?:ponle|agrega|añade|anade|coloca|poner|agregar|añadir|anadir)\s+(?:una\s+)?descripci[óo]n(?:\s*[:\-]\s*(.+))?$', original_message, re.IGNORECASE)
+
+    if user_message.strip() in help_words:
+        return help_menu_response()
 
     if session_state.get("pending_action") in {"ask_description", "await_description"}:
         cleaned = user_message.strip()
@@ -772,11 +811,20 @@ def chatbot(payload: ChatbotPayload, current_user: User = Depends(get_current_us
             return update_pending_task_description(desc_text or original_message)
 
     if session_state.get("pending_action") == "photo":
-        if user_message.strip() in no_words:
+        cleaned = user_message.strip()
+        if cleaned in no_words:
             clear_pending_chat_action()
             return {"response": "Ok, cancelé lo de la foto. ¿Qué más necesitas?"}
 
         with Session(engine) as session:
+            num_match = re.match(r'^(\d+)$', cleaned)
+            if num_match:
+                task_num = int(num_match.group(1))
+                tasks = session.exec(select(Task).where(Task.owner == username, Task.status != "done")).all()
+                if 1 <= task_num <= len(tasks):
+                    return photo_upload_response(tasks[task_num - 1])
+                return {"response": f"Ese número no está en la lista. Elige un número entre 1 y {len(tasks)} o escribe 'cancelar'."}
+
             task = find_task_by_reference(session, original_message)
             if task:
                 return photo_upload_response(task)
@@ -1277,13 +1325,56 @@ def chatbot(payload: ChatbotPayload, current_user: User = Depends(get_current_us
     # Si estamos esperando selección de tarea
     if session_state.get("pending_action"):
         action = session_state["pending_action"]
+
+        if user_message.strip() in no_words:
+            clear_pending_chat_action()
+            return {"response": "Ok, cancelado. Escribe 'ayuda' para ver el menú."}
+
+        # Si seleccionó estado
+        if session_state.get("mode") == "select_status":
+            status_map = {"1": "todo", "2": "in_progress", "3": "done"}
+            if user_message.strip() in status_map:
+                task_id = session_state.get("selected_task")
+                with Session(engine) as session:
+                    task = session.get(Task, task_id)
+                    if task:
+                        task.status = status_map[user_message.strip()]
+                        session.add(task)
+                        session.commit()
+                        session_state["mode"] = "free"
+                        session_state["pending_action"] = None
+                        return {"response": f"✅ Estado de '{task.title}' actualizado a: {task.status}", "action": "task_updated"}
+                clear_pending_chat_action()
+                return {"response": "No encontré esa tarea. Vuelve a intentarlo desde el menú."}
+            return {"response": "Selecciona 1, 2 o 3 para el estado, o escribe 'cancelar'."}
+
+        # Si está editando título
+        if session_state.get("mode") == "edit_title":
+            new_title = original_message.strip()
+            if len(new_title) > 0:
+                task_id = session_state.get("selected_task")
+                with Session(engine) as session:
+                    task = session.get(Task, task_id)
+                    if task:
+                        old_title = task.title
+                        task.title = new_title
+                        session.add(task)
+                        session.commit()
+                        session_state["mode"] = "free"
+                        session_state["pending_action"] = None
+                        return {"response": f"✅ '{old_title}' → '{new_title}'", "action": "title_updated"}
+            clear_pending_chat_action()
+            return {"response": "Cancelado. Escribe 'ayuda' para el menú."}
         
         # Verificar si es un número de tarea
         num_match = re.match(r'^(\d+)$', user_message.strip())
         if num_match:
             task_num = int(num_match.group(1))
             with Session(engine) as session:
-                tasks = session.exec(select(Task).where(Task.owner == username, Task.status != "done")).all()
+                if action in {"edit", "delete"}:
+                    tasks = session.exec(select(Task).where(Task.owner == username)).all()
+                else:
+                    tasks = session.exec(select(Task).where(Task.owner == username, Task.status != "done")).all()
                 if 1 <= task_num <= len(tasks):
                     task = tasks[task_num - 1]
                     
@@ -1314,41 +1405,9 @@ def chatbot(payload: ChatbotPayload, current_user: User = Depends(get_current_us
                         session_state["mode"] = "edit_title"
                         session_state["selected_task"] = task.id
                         return {"response": f"✏️ Tarea: '{task.title}'\n\nEscribe el nuevo nombre para la tarea:"}
-        
-        # Si seleccionó estado
-        if session_state.get("mode") == "select_status":
-            status_map = {"1": "todo", "2": "in_progress", "3": "done"}
-            if user_message.strip() in status_map:
-                task_id = session_state.get("selected_task")
-                with Session(engine) as session:
-                    task = session.get(Task, task_id)
-                    if task:
-                        task.status = status_map[user_message.strip()]
-                        session.add(task)
-                        session.commit()
-                        session_state["mode"] = "free"
-                        session_state["pending_action"] = None
-                        return {"response": f"✅ Estado de '{task.title}' actualizado a: {task.status}", "action": "task_updated"}
-            return {"response": "Selecciona 1, 2 o 3 para el estado."}
-        
-        # Si está editando título
-        if session_state.get("mode") == "edit_title":
-            new_title = user_message.strip()
-            if len(new_title) > 0:
-                task_id = session_state.get("selected_task")
-                with Session(engine) as session:
-                    task = session.get(Task, task_id)
-                    if task:
-                        old_title = task.title
-                        task.title = new_title
-                        session.add(task)
-                        session.commit()
-                        session_state["mode"] = "free"
-                        session_state["pending_action"] = None
-                        return {"response": f"✅ '{old_title}' → '{new_title}'", "action": "title_updated"}
-            session_state["mode"] = "free"
-            session_state["pending_action"] = None
-            return {"response": "Cancelado. Escribe 'ayuda' para el menú."}
+                return {"response": f"Ese número no está en la lista. Elige un número entre 1 y {len(tasks)} o escribe 'cancelar'."}
+
+        return {"response": "Necesito el número de la tarea de la lista, o escribe 'cancelar'."}
     
     # Verificar si es selección de menú
     menu_num = re.match(r'^([1-9])$', user_message.strip())
@@ -1363,17 +1422,26 @@ def chatbot(payload: ChatbotPayload, current_user: User = Depends(get_current_us
                 return {"response": "✏️ CREAR TAREA\n\nEscribe el nombre de la tarea:\nEj: 'crear tarea preparar cena' o solo 'preparar cena'"}
             
             elif option == 2:
+                session_state["pending_action"] = "edit"
+                session_state.pop("selected_task", None)
                 if not all_tasks:
+                    clear_pending_chat_action()
                     return {"response": "📭 No tienes tareas. Crea una primero."}
                 return {"response": f"✏️ MODIFICAR TAREA\n\nTus tareas:\n" + "\n".join([f"{i+1}. {t.title}" for i, t in enumerate(all_tasks)]) + "\n\nEscribe el número de la tarea:"}
             
             elif option == 3:
+                session_state["pending_action"] = "status"
+                session_state.pop("selected_task", None)
                 if not pending_tasks:
+                    clear_pending_chat_action()
                     return {"response": "📭 No tienes tareas pendientes."}
                 return {"response": f"🔄 MODIFICAR ESTADO\n\nTareas pendientes:\n" + "\n".join([f"{i+1}. {t.title}" for i, t in enumerate(pending_tasks)]) + "\n\nEscribe el número:"}
             
             elif option == 4:
+                session_state["pending_action"] = "photo"
+                session_state.pop("selected_task", None)
                 if not pending_tasks:
+                    clear_pending_chat_action()
                     return {"response": "📭 No tienes tareas para agregar foto."}
                 return {"response": f"📷 AGREGAR FOTO\n\nTareas:\n" + "\n".join([f"{i+1}. {t.title}" for i, t in enumerate(pending_tasks)]) + "\n\nEscribe el número:"}
             
@@ -1394,13 +1462,17 @@ def chatbot(payload: ChatbotPayload, current_user: User = Depends(get_current_us
             
             elif option == 6:
                 session_state["pending_action"] = "complete"
+                session_state.pop("selected_task", None)
                 if not pending_tasks:
+                    clear_pending_chat_action()
                     return {"response": "📭 No tienes tareas pendientes."}
                 return {"response": f"✅ COMPLETAR TAREA\n\nTareas:\n" + "\n".join([f"{i+1}. {t.title}" for i, t in enumerate(pending_tasks)]) + "\n\nEscribe el número:"}
             
             elif option == 7:
                 session_state["pending_action"] = "delete"
+                session_state.pop("selected_task", None)
                 if not all_tasks:
+                    clear_pending_chat_action()
                     return {"response": "📭 No tienes tareas."}
                 return {"response": f"🗑️ ELIMINAR TAREA\n\nTareas:\n" + "\n".join([f"{i+1}. {t.title}" for i, t in enumerate(all_tasks)]) + "\n\nEscribe el número:"}
             
@@ -1677,7 +1749,7 @@ def chatbot_v2(payload: ChatbotPayload, current_user: User = Depends(get_current
                 else:
                     task = session.exec(select(Task).where(Task.title.ilike(f"%{task_search}%"), Task.owner == username)).first()
                 if task:
-                    return {"response": f"[FOTO] Para agregar foto a '{task.title}': POST /tasks/{task.id}/image con archivo jpg/png", "action": "photo_upload", "task_id": task.id}
+                    return {"response": f"[FOTO] Para agregar foto a '{task.title}': POST /tasks/{task.id}/image con imagen JPEG, PNG, GIF, WEBP, BMP, SVG, HEIC, HEIF, TIFF o AVIF", "action": "photo_upload", "task_id": task.id}
     
     # ==================== COMANDOS SIMPLIFICADOS ====================
     
@@ -1793,7 +1865,7 @@ def chatbot_v2(payload: ChatbotPayload, current_user: User = Depends(get_current
             else:
                 task = session.exec(select(Task).where(Task.title.ilike(f"%{task_search}%"), Task.owner == username)).first()
             if task:
-                return {"response": f"[FOTO] Para agregar foto a '{task.title}': POST /tasks/{task.id}/image con archivo jpg/png", "action": "photo_upload", "task_id": task.id}
+                return {"response": f"[FOTO] Para agregar foto a '{task.title}': POST /tasks/{task.id}/image con imagen JPEG, PNG, GIF, WEBP, BMP, SVG, HEIC, HEIF, TIFF o AVIF", "action": "photo_upload", "task_id": task.id}
             return {"response": f"No encontrada: {task_search}"}
     
     # ==================== PRIORIDAD DE TAREA ====================
