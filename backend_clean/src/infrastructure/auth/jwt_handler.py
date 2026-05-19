@@ -5,7 +5,7 @@ from passlib.context import CryptContext
 
 SECRET_KEY = "taskflow-secret-key-change-in-production-2024"
 ALGORITHM = "HS256"
-ACCESS_TOKEN_EXPIRE_MINUTES = 30
+ACCESS_TOKEN_EXPIRE_MINUTES = 5
 REFRESH_TOKEN_EXPIRE_DAYS = 7
 
 

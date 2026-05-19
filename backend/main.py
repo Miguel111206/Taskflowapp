@@ -31,7 +31,7 @@ def root():
 SECRET_KEY = os.getenv("SECRET_KEY", "tu-super-secret-key-cambiala-en-produccion")
 REFRESH_SECRET_KEY = os.getenv("REFRESH_SECRET_KEY", "refresh-secret-key-cambiala")
 ALGORITHM = "HS256"
-ACCESS_TOKEN_EXPIRE_MINUTES = 60
+ACCESS_TOKEN_EXPIRE_MINUTES = 5
 REFRESH_TOKEN_EXPIRE_DAYS = 30
 
 # Asignado: Copilot — estado: in_progress
@@ -62,6 +62,9 @@ oauth2_scheme = OAuth2PasswordBearer(tokenUrl="login")
 # Ensure DB tables exist (wrap to surface errors during container startup)
 try:
     SQLModel.metadata.create_all(engine)
+    if engine.dialect.name == "mysql":
+        with engine.begin() as conn:
+            conn.execute(text("ALTER TABLE task MODIFY COLUMN image LONGTEXT NULL"))
 except Exception as e:
     # Log to a file for visibility in container logs
     try:
@@ -567,10 +570,10 @@ def get_task_image(task_id: int, current_user: User = Depends(get_current_user))
                 header, b64 = t.image.split(',', 1)
                 media_type = header.split(';')[0].split(':', 1)[1]
                 import base64
-                data = base64.b64decode(b64)
+                data = base64.b64decode(b64, validate=True)
                 return Response(content=data, media_type=media_type)
             except Exception:
-                raise HTTPException(status_code=500, detail="Invalid image data")
+                raise HTTPException(status_code=422, detail="Stored image data is invalid. Please upload the image again.")
         # Fallback: return JSON (backwards compatibility)
         return {"image": t.image}
 

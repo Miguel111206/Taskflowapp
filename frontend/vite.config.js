@@ -1,22 +1,24 @@
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 
+const backendTarget = process.env.VITE_PROXY_TARGET || "http://127.0.0.1:8010";
+
 export default defineConfig({
   plugins: [react()],
   server: {
     host: '0.0.0.0',
     port: 5173,
     proxy: {
-      "/login": "http://backend:8010",
-      "/register": "http://backend:8010",
-      "/tasks": "http://backend:8010",
-      "/users": "http://backend:8010",
-      "/me": "http://backend:8010",
-      "/refresh": "http://backend:8010",
-      "/admin": "http://backend:8010",
-      "/2fa": "http://backend:8010",
-      "/chatbot": "http://backend:8010",
-      "/public": "http://backend:8010",
+      "/login": backendTarget,
+      "/register": backendTarget,
+      "/tasks": backendTarget,
+      "/users": backendTarget,
+      "/me": backendTarget,
+      "/refresh": backendTarget,
+      "/admin": backendTarget,
+      "/2fa": backendTarget,
+      "/chatbot": backendTarget,
+      "/public": backendTarget,
     },
   },
   test: {

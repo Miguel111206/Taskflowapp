@@ -13,6 +13,7 @@ class TaskModel(Base):
     description = Column(Text, nullable=True)
     status = Column(String(20), default="pending", index=True)
     owner_id = Column(String, ForeignKey("users.id"), nullable=False, index=True)
+    image = Column(Text, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     

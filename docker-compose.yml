@@ -16,7 +16,7 @@ services:
 
   backend:
     build:
-      context: ./backend
+      context: ./backend_clean
     container_name: taskflow-backend
     restart: unless-stopped
     environment:
@@ -37,6 +37,8 @@ services:
       context: ./frontend
     container_name: taskflow-frontend
     restart: unless-stopped
+    environment:
+      VITE_PROXY_TARGET: http://backend:8010
     ports:
       - "5181:5173"
     depends_on:
